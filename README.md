@@ -48,6 +48,9 @@ UCC is BSD-style licensed, as found in the [LICENSE](LICENSE) file.
    * UCC supports AMD GPUs using HIP. Instructions for installing ROCM/HIP can be found at
      [AMD ROCM](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation_new.html).
 
+* [HCCL](https://docs.habana.ai/en/latest/Habana_Training_Library/HCL_Habana_Communication_Library/index.html) (optional)
+   * UCC supports Habana Gaudi devices using HCCL. See [HCCL_INTEGRATION_GUIDE.md](HCCL_INTEGRATION_GUIDE.md) for detailed integration information.
+
 * Doxygen
    * UCC uses Doxygen for generating API documentation
 
@@ -111,6 +114,7 @@ $ mpirun -np 2 --mca scoll_ucc_enable 1 --mca scoll_ucc_priority 100 ./my_opensh
 * CUDA
 * NCCL
 * RCCL
+* HCCL
 * MLX5
 
 
