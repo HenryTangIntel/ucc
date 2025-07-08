@@ -173,6 +173,7 @@ AS_IF([test "x$with_docs_only" = xyes],
      m4_include([config/m4/cuda.m4])
      m4_include([config/m4/nvls.m4])
      m4_include([config/m4/nccl.m4])
+     m4_include([config/m4/hccl.m4])
      m4_include([config/m4/rocm.m4])
      m4_include([config/m4/doca_urom.m4])
      m4_include([config/m4/rccl.m4])
@@ -214,6 +215,9 @@ AS_IF([test "x$with_docs_only" = xyes],
      CHECK_DOCA_UROM
      AC_MSG_RESULT([DOCA_UROM support: $doca_urom_happy])
 
+     CHECK_HCCL
+     AC_MSG_RESULT([HCCL support: $hccl_happy])
+
      CHECK_GTEST
      AC_MSG_RESULT([GTEST support: $gtest_happy])
 
@@ -250,6 +254,7 @@ AC_CONFIG_FILES([
                  src/components/ec/rocm/Makefile
                  src/components/ec/rocm/kernel/Makefile
                  src/components/tl/cuda/kernels/Makefile
+                 src/components/tl/hccl/Makefile
                  test/mpi/Makefile
                  test/gtest/Makefile
                  tools/info/Makefile
