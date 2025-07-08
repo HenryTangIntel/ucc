@@ -1,0 +1,173 @@
+# HCCL Integration Test Makefile
+# Provides convenient targets for testing HCCL integration
+
+# Configuration
+MPIRUN_NP ?= 4
+TEST_ITERATIONS ?= 10
+UCC_TL_LIST ?= hccl,ucp,self
+
+# Directories
+TEST_DIR = test
+TOOLS_DIR = tools
+HCCL_TEST_SCRIPT = ./test_hccl_integration.sh
+
+.PHONY: all test-hccl test-build test-unit test-mpi test-perf clean-test help
+
+# Default target
+all: test-hccl
+
+# Main HCCL test suite
+test-hccl:
+	@echo "Running complete HCCL integration test suite..."
+	$(HCCL_TEST_SCRIPT) -n $(MPIRUN_NP) -i $(TEST_ITERATIONS)
+
+# Individual test targets
+test-build:
+	@echo "Testing HCCL build integration..."
+	$(HCCL_TEST_SCRIPT) -t build
+
+test-component:
+	@echo "Testing HCCL component availability..."
+	$(HCCL_TEST_SCRIPT) -t component
+
+test-unit:
+	@echo "Running HCCL unit tests..."
+	$(HCCL_TEST_SCRIPT) -t gtest
+
+test-mpi:
+	@echo "Running HCCL MPI integration tests..."
+	$(HCCL_TEST_SCRIPT) -t mpi
+
+test-perf:
+	@echo "Running HCCL performance benchmarks..."
+	$(HCCL_TEST_SCRIPT) -t performance
+
+test-stress:
+	@echo "Running HCCL stress tests..."
+	$(HCCL_TEST_SCRIPT) -t stress
+
+# Quick smoke test
+test-smoke:
+	@echo "Running HCCL smoke test..."
+	$(HCCL_TEST_SCRIPT) -t build
+	$(HCCL_TEST_SCRIPT) -t component
+	cd $(TEST_DIR)/mpi && mpirun --oversubscribe --allow-run-as-root -n 2 --mca coll_ucc_enable 1 ./test_allreduce
+
+# Verbose testing
+test-verbose:
+	@echo "Running HCCL tests with verbose output..."
+	$(HCCL_TEST_SCRIPT) -v -n $(MPIRUN_NP)
+
+# Manual MPI tests
+test-mpi-manual:
+	@echo "Running manual MPI tests..."
+	cd $(TEST_DIR)/mpi && \
+	for test in test_allreduce test_allgather test_bcast test_barrier; do \
+		echo "Running $$test..."; \
+		mpirun --oversubscribe --allow-run-as-root -n $(MPIRUN_NP) \
+		       --mca coll_ucc_enable 1 --mca coll_ucc_priority 100 \
+		       ./$$test || echo "$$test failed"; \
+	done
+
+# Performance testing
+test-perf-manual:
+	@echo "Running manual performance tests..."
+	cd $(TOOLS_DIR)/perf && \
+	for coll in allreduce allgather bcast barrier; do \
+		echo "Testing $$coll performance..."; \
+		mpirun --oversubscribe --allow-run-as-root -n $(MPIRUN_NP) \
+		       ./ucc_perftest -c $$coll -b 1K -i $(TEST_ITERATIONS) || echo "$$coll perf test failed"; \
+	done
+
+# Check HCCL availability
+check-hccl:
+	@echo "Checking HCCL TL availability..."
+	@if [ -f "src/components/tl/hccl/.libs/libucc_tl_hccl.so" ]; then \
+		echo "✓ HCCL TL library found"; \
+	else \
+		echo "✗ HCCL TL library not found"; \
+		echo "  Please build with: ./configure --with-hccl=<path>"; \
+		exit 1; \
+	fi
+	@echo "Available Transport Layers:"
+	@./tools/info/ucc_info -t
+
+# Debug information
+debug-info:
+	@echo "=== HCCL Debug Information ==="
+	@echo "UCC Root: $(PWD)"
+	@echo "Test processes: $(MPIRUN_NP)"
+	@echo "Test iterations: $(TEST_ITERATIONS)"
+	@echo "TL list: $(UCC_TL_LIST)"
+	@echo
+	@echo "=== Library Status ==="
+	@ls -la src/components/tl/hccl/.libs/libucc_tl_hccl.so 2>/dev/null || echo "HCCL TL not built"
+	@echo
+	@echo "=== Component Info ==="
+	@UCC_LOG_LEVEL=INFO ./tools/info/ucc_info -c 2>/dev/null || echo "Failed to get component info"
+
+# Environment setup for testing
+test-env:
+	@echo "Setting up test environment..."
+	@echo "export UCC_TL=$(UCC_TL_LIST)"
+	@echo "export UCC_LOG_LEVEL=INFO"
+	@echo "export UCC_TL_HCCL_LOG_LEVEL=DEBUG"
+	@echo "export MPIRUN_OPTIONS='--oversubscribe --allow-run-as-root --mca coll_ucc_enable 1'"
+
+# Clean test artifacts
+clean-test:
+	@echo "Cleaning test artifacts..."
+	rm -rf /tmp/ucc_hccl_tests
+	rm -f test/mpi/*.log
+	rm -f tools/perf/*.log
+
+# Build test programs
+build-tests:
+	@echo "Building test programs..."
+	cd $(TEST_DIR)/mpi && $(MAKE)
+	cd $(TOOLS_DIR)/perf && $(MAKE)
+
+# CI-friendly test (no interactive elements)
+test-ci:
+	@echo "Running CI-friendly HCCL tests..."
+	$(HCCL_TEST_SCRIPT) -n 2 -i 5 --clean
+
+# Help target
+help:
+	@echo "HCCL Integration Test Makefile"
+	@echo "=============================="
+	@echo
+	@echo "Main targets:"
+	@echo "  test-hccl      - Run complete HCCL test suite"
+	@echo "  test-smoke     - Quick smoke test"
+	@echo "  check-hccl     - Check HCCL availability"
+	@echo
+	@echo "Individual tests:"
+	@echo "  test-build     - Test build integration"
+	@echo "  test-component - Test component availability"
+	@echo "  test-unit      - Run unit tests"
+	@echo "  test-mpi       - Run MPI integration tests"
+	@echo "  test-perf      - Run performance tests"
+	@echo "  test-stress    - Run stress tests"
+	@echo
+	@echo "Manual testing:"
+	@echo "  test-mpi-manual  - Manual MPI tests"
+	@echo "  test-perf-manual - Manual performance tests"
+	@echo "  test-verbose     - Verbose test output"
+	@echo
+	@echo "Utilities:"
+	@echo "  debug-info     - Show debug information"
+	@echo "  test-env       - Show environment setup"
+	@echo "  build-tests    - Build test programs"
+	@echo "  clean-test     - Clean test artifacts"
+	@echo "  test-ci        - CI-friendly testing"
+	@echo
+	@echo "Variables:"
+	@echo "  MPIRUN_NP=$(MPIRUN_NP)           - Number of MPI processes"
+	@echo "  TEST_ITERATIONS=$(TEST_ITERATIONS)       - Test iterations"
+	@echo "  UCC_TL_LIST=$(UCC_TL_LIST)     - TL priority list"
+	@echo
+	@echo "Examples:"
+	@echo "  make test-hccl MPIRUN_NP=8"
+	@echo "  make test-perf TEST_ITERATIONS=100"
+	@echo "  make test-verbose"
