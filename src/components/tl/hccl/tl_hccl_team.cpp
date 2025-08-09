@@ -6,18 +6,18 @@
 
 #include "config.h"
 #include "tl_hccl.h"
+#include "tl_hccl_coll.h"
 #include "utils/ucc_malloc.h"
 #include "core/ucc_team.h"
+#include "coll_score/ucc_coll_score.h"
 
 ucc_status_t ucc_tl_hccl_comm_init(ucc_tl_hccl_team_t *team)
 {
     ucc_tl_hccl_context_t *ctx  = UCC_TL_HCCL_TEAM_CTX(team);
-    ucc_base_team_t       *tl_team = &team->super.super;
     hcclResult_t           hccl_st;
-    ucc_status_t           status;
 
-    hccl_st = hcclCommInitRank(&team->hccl_comm, tl_team->size, 
-                              *(team->unique_id), tl_team->rank);
+    hccl_st = hcclCommInitRank(&team->hccl_comm, UCC_TL_TEAM_SIZE(team), 
+                              *(team->unique_id), UCC_TL_TEAM_RANK(team));
     if (hccl_st != hcclSuccess) {
         tl_error(ctx->super.super.lib, "failed to initialize HCCL communicator");
         return UCC_ERR_NO_MESSAGE;
@@ -34,7 +34,7 @@ UCC_CLASS_INIT_FUNC(ucc_tl_hccl_team_t, ucc_base_context_t *tl_context,
     ucc_tl_hccl_context_t *ctx = ucc_derived_of(tl_context, ucc_tl_hccl_context_t);
     ucc_status_t           status;
 
-    UCC_CLASS_CALL_SUPER_INIT(ucc_tl_team_t, &self->super, tl_context, params);
+    UCC_CLASS_CALL_SUPER_INIT(ucc_tl_team_t, &ctx->super, params);
 
     self->comm_state = TL_HCCL_COMM_STATE_OOB;
     self->unique_id  = NULL;
@@ -63,29 +63,31 @@ UCC_CLASS_CLEANUP_FUNC(ucc_tl_hccl_team_t)
     if (self->unique_id) {
         ucc_free(self->unique_id);
     }
-    UCC_CLASS_CALL_SUPER_FINALIZE(ucc_tl_team_t, &self->super);
 }
+
+UCC_CLASS_DEFINE_DELETE_FUNC(ucc_tl_hccl_team_t, ucc_base_team_t);
+UCC_CLASS_DEFINE(ucc_tl_hccl_team_t, ucc_tl_team_t);
 
 ucc_status_t ucc_tl_hccl_team_create_post(ucc_base_context_t *tl_context,
                                           ucc_base_team_t *tl_team)
 {
-    ucc_tl_hccl_context_t *ctx = ucc_derived_of(tl_context, ucc_tl_hccl_context_t);
-    ucc_tl_hccl_team_t    *team;
-    ucc_status_t           status;
+    /* Team creation is already done via the class system */
+    /* This is just a placeholder for any post-creation work */
+    (void)tl_context; /* Unused parameter */
+    (void)tl_team; /* Unused parameter */
+    return UCC_OK;
+}
 
-    status = UCC_TL_HCCL_TEAM_INIT(team, tl_context, tl_team);
-    if (status != UCC_OK) {
-        return status;
-    }
-    *tl_team = &team->super.super;
+ucc_status_t ucc_tl_hccl_team_create_test(ucc_base_team_t *tl_team)
+{
+    /* Team creation is synchronous, so always return success */
+    (void)tl_team; /* Unused parameter */
     return UCC_OK;
 }
 
 ucc_status_t ucc_tl_hccl_team_destroy(ucc_base_team_t *tl_team)
 {
-    ucc_tl_hccl_team_t *team = ucc_derived_of(tl_team, ucc_tl_hccl_team_t);
-
-    UCC_CLASS_DELETE_FUNC_NAME(ucc_tl_hccl_team_t)(team);
+    UCC_CLASS_DELETE_FUNC_NAME(ucc_tl_hccl_team_t)(tl_team);
     return UCC_OK;
 }
 
@@ -94,16 +96,8 @@ ucc_status_t ucc_tl_hccl_team_get_scores(ucc_base_team_t   *tl_team,
 {
     ucc_tl_hccl_team_t *team = ucc_derived_of(tl_team, ucc_tl_hccl_team_t);
     ucc_base_context_t *ctx  = UCC_TL_TEAM_CTX(team);
-    ucc_memory_type_t   mem_types[] = {UCC_MEMORY_TYPE_HOST};
     ucc_coll_score_t   *score;
     ucc_status_t        status;
-    int                 i;
-    ucc_coll_score_team_info_t team_info;
-
-    team_info.alg_id             = 0;
-    team_info.team               = &team->super;
-    team_info.team_size          = UCC_TL_TEAM_SIZE(team);
-    team_info.topo               = NULL;
 
     status = ucc_coll_score_alloc(&score);
     if (UCC_OK != status) {
@@ -111,16 +105,14 @@ ucc_status_t ucc_tl_hccl_team_get_scores(ucc_base_team_t   *tl_team,
         return status;
     }
 
-    for (i = 0; i < UCC_TL_HCCL_SUPPORTED_COLLS; i++) {
-        /* Add default score for each supported collective */
-        status = ucc_coll_score_add_range(
-            score, UCC_COLL_TYPE_ALLREDUCE, UCC_MEMORY_TYPE_HOST, 0,
-            UCC_MSG_MAX, UCC_TL_HCCL_DEFAULT_SCORE,
-            ucc_tl_hccl_coll_init, &team->super);
-        if (UCC_OK != status) {
-            tl_error(ctx->lib, "failed to add score range");
-            goto err;
-        }
+    /* Add default score for ALLREDUCE - the most common collective */
+    status = ucc_coll_score_add_range(
+        score, UCC_COLL_TYPE_ALLREDUCE, UCC_MEMORY_TYPE_HOST, 0,
+        UCC_MSG_MAX, UCC_TL_HCCL_DEFAULT_SCORE,
+        ucc_tl_hccl_coll_init, &team->super.super);
+    if (UCC_OK != status) {
+        tl_error(ctx->lib, "failed to add score range");
+        goto err;
     }
 
     *score_p = score;

@@ -10,6 +10,7 @@
 #include "components/tl/ucc_tl.h"
 #include "components/tl/ucc_tl_log.h"
 #include "utils/ucc_mpool.h"
+#include "coll_score/ucc_coll_score.h"
 
 #include <hccl.h>
 
@@ -139,6 +140,20 @@ static inline ucc_status_t ucc_tl_hccl_check_async_error(hcclResult_t *hccl_stat
 }
 
 ucc_status_t ucc_tl_hccl_comm_init(ucc_tl_hccl_team_t *team);
+
+/* Function prototypes for the interface */
+ucc_status_t ucc_tl_hccl_team_create_post(ucc_base_context_t *tl_context,
+                                          ucc_base_team_t *tl_team);
+ucc_status_t ucc_tl_hccl_team_create_test(ucc_base_team_t *tl_team);
+ucc_status_t ucc_tl_hccl_team_destroy(ucc_base_team_t *tl_team);
+ucc_status_t ucc_tl_hccl_team_get_scores(ucc_base_team_t *tl_team,
+                                         ucc_coll_score_t **score_p);
+
+/* Use the generated constructor/destructor names */
+#define ucc_tl_hccl_lib_constructor    UCC_CLASS_NEW_FUNC_NAME(ucc_tl_hccl_lib_t)
+#define ucc_tl_hccl_lib_destructor     UCC_CLASS_DELETE_FUNC_NAME(ucc_tl_hccl_lib_t)
+#define ucc_tl_hccl_context_constructor UCC_CLASS_NEW_FUNC_NAME(ucc_tl_hccl_context_t)
+#define ucc_tl_hccl_context_destructor  UCC_CLASS_DELETE_FUNC_NAME(ucc_tl_hccl_context_t)
 
 #define HCCLCHECK_GOTO(_cmd, _label, _st, _lib, _task_st, _comm)               \
     do {                                                                       \

@@ -16,8 +16,8 @@ UCC_CLASS_INIT_FUNC(ucc_tl_hccl_context_t,
         ucc_derived_of(config, ucc_tl_hccl_context_config_t);
     ucc_status_t status;
 
-    UCC_CLASS_CALL_SUPER_INIT(ucc_tl_context_t, &self->super,
-                              &tl_hccl_config->super, params->context);
+    UCC_CLASS_CALL_SUPER_INIT(ucc_tl_context_t, &tl_hccl_config->super,
+                              params->context);
 
     memcpy(&self->cfg, tl_hccl_config, sizeof(*tl_hccl_config));
 
@@ -42,5 +42,4 @@ UCC_CLASS_CLEANUP_FUNC(ucc_tl_hccl_context_t)
         ucc_free(self->scratch_buf);
     }
     ucc_mpool_cleanup(&self->req_mp, 1);
-    UCC_CLASS_CALL_SUPER_FINALIZE(ucc_tl_context_t, &self->super);
 }

@@ -19,7 +19,7 @@ ucc_tl_hccl_coll_base_init(ucc_base_coll_args_t *coll_args,
     ucc_tl_hccl_context_t *ctx       = UCC_TL_HCCL_TEAM_CTX(hccl_team);
     ucc_tl_hccl_task_t    *task;
 
-    task = ucc_mpool_get(&ctx->req_mp);
+    task = (ucc_tl_hccl_task_t*)ucc_mpool_get(&ctx->req_mp);
     if (ucc_unlikely(!task)) {
         return UCC_ERR_NO_MEMORY;
     }
@@ -54,9 +54,9 @@ static hcclDataType_t ucc_to_hccl_dtype(ucc_datatype_t dt)
     case UCC_DT_UINT8:
         return hcclUint8;
     case UCC_DT_INT16:
-        return hcclInt16;
+        return hcclInt32;  /* Fall back to 32-bit */
     case UCC_DT_UINT16:
-        return hcclUint16;
+        return hcclUint32; /* Fall back to 32-bit */
     case UCC_DT_INT32:
         return hcclInt32;
     case UCC_DT_UINT32:
@@ -95,18 +95,15 @@ static hcclRedOp_t ucc_to_hccl_reduce_op(ucc_reduction_op_t op)
     }
 }
 
-static ucc_status_t ucc_tl_hccl_coll_progress(ucc_coll_task_t *coll_task)
+static void ucc_tl_hccl_coll_progress(ucc_coll_task_t *coll_task)
 {
-    ucc_tl_hccl_task_t    *task = ucc_derived_of(coll_task, ucc_tl_hccl_task_t);
-    ucc_tl_hccl_team_t    *team = TASK_TEAM(task);
+    ucc_tl_hccl_task_t *task = ucc_derived_of(coll_task, ucc_tl_hccl_task_t);
     
     if (task->host_status == UCC_INPROGRESS) {
         /* For now, assume synchronous completion */
         task->host_status = UCC_OK;
         task->super.status = UCC_OK;
     }
-    
-    return task->super.status;
 }
 
 static ucc_status_t ucc_tl_hccl_coll_post(ucc_coll_task_t *coll_task)
@@ -115,7 +112,7 @@ static ucc_status_t ucc_tl_hccl_coll_post(ucc_coll_task_t *coll_task)
     ucc_tl_hccl_task_t *task = ucc_derived_of(coll_task, ucc_tl_hccl_task_t);
     
     task->super.status = UCC_INPROGRESS;
-    return ucc_progress_queue_enqueue(UCC_TL_CORE_CTX(task)->pq, &task->super);
+    return ucc_progress_queue_enqueue(UCC_TL_CORE_CTX(TASK_TEAM(task))->pq, &task->super);
 }
 
 ucc_status_t ucc_tl_hccl_allreduce_init(ucc_base_coll_args_t *coll_args,

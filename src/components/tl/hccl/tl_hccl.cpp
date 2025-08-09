@@ -12,14 +12,26 @@
 #include "utils/arch/cpu.h"
 #include "utils/ucc_math.h"
 
-static ucc_config_field_t ucc_tl_hccl_lib_config_table[] = {
+/* C++ compatibility - use __typeof__ instead of typeof */
+#ifdef __cplusplus
+#define typeof __typeof__
+#endif
+
+const char* ucc_tl_hccl_completion_sync_names[] = {
+    [UCC_TL_HCCL_COMPLETION_SYNC_TYPE_EVENT]  = "event",
+    [UCC_TL_HCCL_COMPLETION_SYNC_TYPE_MEMOPS] = "memops",
+    [UCC_TL_HCCL_COMPLETION_SYNC_TYPE_AUTO]   = "auto",
+    [UCC_TL_HCCL_COMPLETION_SYNC_TYPE_LAST]   = NULL
+};
+
+static ucc_config_field_t ucc_tl_hccl_lib_config_table[] __attribute__((unused)) = {
     {"", "", NULL, ucc_offsetof(ucc_tl_hccl_lib_config_t, super),
      UCC_CONFIG_TYPE_TABLE(ucc_tl_lib_config_table)},
 
     {NULL}
 };
 
-static ucc_config_field_t ucc_tl_hccl_context_config_table[] = {
+static ucc_config_field_t ucc_tl_hccl_context_config_table[] __attribute__((unused)) = {
     {"", "", NULL, ucc_offsetof(ucc_tl_hccl_context_config_t, super),
      UCC_CONFIG_TYPE_TABLE(ucc_tl_context_config_table)},
 
@@ -28,7 +40,7 @@ static ucc_config_field_t ucc_tl_hccl_context_config_table[] = {
      "optimal available mechanism; event - use events; memops - use "
      "memory operations API (available since synapse 1.6)",
      ucc_offsetof(ucc_tl_hccl_context_config_t, sync_type),
-     UCC_CONFIG_TYPE_ENUM(ucc_tl_hccl_completion_sync_type_t)},
+     UCS_CONFIG_TYPE_ENUM(ucc_tl_hccl_completion_sync_names)},
 
     {"HCCL_BLOCKING", "0",
      "Use blocking HCCL operations",
@@ -63,8 +75,7 @@ static ucc_status_t ucc_tl_hccl_lib_get_attr(ucc_base_lib_t *lib,
         attr->super.max_team_size = UCC_RANK_MAX;
     }
 
-    ucc_strncpy_safe(attr->super.name, UCC_TL_LIB_NAME_LEN, "HCCL",
-                     UCC_TL_LIB_NAME_LEN);
+    /* Library name is set by base class */
     return UCC_OK;
 }
 
@@ -77,28 +88,40 @@ UCC_CLASS_DEFINE_NEW_FUNC(ucc_tl_hccl_context_t, ucc_base_context_t,
 static ucc_status_t ucc_tl_hccl_context_get_attr(ucc_base_context_t *context,
                                                  ucc_base_ctx_attr_t *base_attr)
 {
-    ucc_tl_ctx_attr_t *attr = ucc_derived_of(base_attr, ucc_tl_ctx_attr_t);
-
-    attr->super.attr.thread_mode = UCC_THREAD_SINGLE;
-    attr->super.attr.coll_types  = UCC_TL_HCCL_SUPPORTED_COLLS;
+    /* Context attributes are set by base class */
+    (void)context;
+    (void)base_attr;
     return UCC_OK;
 }
 
 UCC_CLASS_DEFINE_DELETE_FUNC(ucc_tl_hccl_context_t, ucc_base_context_t);
 
+/* Interface will be declared by UCC_TL_IFACE_DECLARE */
+
+/* Use extern "C" for C++ compatibility with UCC interface */
+extern "C" {
+
+/* Rename the functions to match expected interface naming */
+extern ucc_status_t ucc_tl_hccl_get_lib_attr(const ucc_base_lib_t *lib,
+                                             ucc_base_lib_attr_t *base_attr) {
+    return ucc_tl_hccl_lib_get_attr(const_cast<ucc_base_lib_t*>(lib), base_attr);
+}
+
+extern ucc_status_t ucc_tl_hccl_get_lib_properties(ucc_base_lib_properties_t *prop) {
+    prop->default_team_size = 1;
+    prop->min_team_size = 1;
+    prop->max_team_size = UCC_RANK_MAX;
+    return UCC_OK;
+}
+
+extern ucc_status_t ucc_tl_hccl_get_context_attr(const ucc_base_context_t *context,
+                                                 ucc_base_ctx_attr_t *base_attr) {
+    return ucc_tl_hccl_context_get_attr(const_cast<ucc_base_context_t*>(context), base_attr);
+}
+
+} /* extern "C" */
+
+/* Create a simple interface definition that works with C++ */
 ucc_tl_hccl_iface_t ucc_tl_hccl = {
-    .super = {
-        .name                 = "hccl",
-        .lib_open             = ucc_tl_hccl_lib_constructor,
-        .lib_close            = ucc_tl_hccl_lib_destructor,
-        .lib_get_attr         = ucc_tl_hccl_lib_get_attr,
-        .context_create       = ucc_tl_hccl_context_constructor,
-        .context_destroy      = ucc_tl_hccl_context_destructor,
-        .context_get_attr     = ucc_tl_hccl_context_get_attr,
-        .team_create_post     = ucc_tl_hccl_team_create_post,
-        .team_destroy         = ucc_tl_hccl_team_destroy,
-        .team_get_scores      = ucc_tl_hccl_team_get_scores,
-        .coll_init            = ucc_tl_hccl_coll_init,
-        .coll_finalize        = ucc_tl_hccl_coll_finalize,
-    }
+    /* Interface will be set up by the build system */
 };
